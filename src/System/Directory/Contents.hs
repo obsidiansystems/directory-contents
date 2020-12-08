@@ -122,27 +122,63 @@ buildPath = build Map.empty
          | otherwise -> pure $ Just $ Path_File path path
 
 -- | De-reference one layer of symlinks
-dereferenceSymlinks :: Path FilePath -> Path FilePath -> IO (Path FilePath)
-dereferenceSymlinks toppath curpath =
-  case curpath of
-    Path_Dir p xs -> Path_Dir p <$> mapM (dereferenceSymlinks toppath) xs
-    Path_File p x -> pure $ Path_File p x
-    Path_Symlink p sym -> do
-      case sym of
-        Symlink_External _ paths -> pure $ Path_Dir p paths
-        Symlink_Internal _ -> do
-          let startingPoint = takeFileName $ filePath toppath
-          canonRoot <- canonicalizePath $ filePath toppath
-          canonSym <- takeDirectory <$> canonicalizePath p
-          let target = walkPath (startingPoint </> mkRelative canonRoot canonSym) toppath
-          pure $ case target of
-            Nothing -> Path_Symlink p sym
-            Just t -> t
+{- |
+==== __Example__
+
+Given:
+
+> tmp
+> |
+> +- A
+> |  |
+> |  `- a
+> |
+> +- a -> A/a
+> |
+> `- C
+>    |
+>    `- A -> ../A
+
+This function will follow one level of symlinks, producing:
+
+> tmp
+> |
+> +- A
+> |  |
+> |  `- a
+> |
+> +- a
+> |
+> `- C
+>    |
+>    `- A
+>       |
+>       `- a
+
+-}
+dereferenceSymlinks :: Path FilePath -> IO (Path FilePath)
+dereferenceSymlinks toppath =
+  deref toppath toppath
   where
     filePath = \case
       Path_Dir f _ -> f
       Path_File f _ -> f
       Path_Symlink f _ -> f
+    deref top cur = case cur of
+      Path_Dir p xs -> Path_Dir p <$> mapM (deref top) xs
+      Path_File p x -> pure $ Path_File p x
+      Path_Symlink p sym -> do
+        case sym of
+          Symlink_External _ paths -> pure $ Path_Dir p paths
+          Symlink_Internal _ -> do
+            let startingPoint = takeFileName $ filePath top
+            canonRoot <- canonicalizePath $ filePath top
+            canonSym <- takeDirectory <$> canonicalizePath p
+            let target = walkPath (startingPoint </> mkRelative canonRoot canonSym) top
+            pure $ case target of
+              Nothing -> Path_Symlink p sym
+              Just t -> t
+
 
 -- * Navigate
 
