@@ -43,6 +43,8 @@ data Path a = Path_Dir FilePath [Path a]
 -- following the symlink and listing the target redundantly, we simply store
 -- the symlink reference itself. In the latter case, we treat the symlink as we
 -- would any other folder and produce a list of its contents.
+--
+-- The 'String' argument represents the symlink reference (e.g., "../somefile").
 data Symlink a = Symlink_Internal String
                | Symlink_External String [Path a]
   deriving (Show, Read, Eq, Ord, Functor, Foldable, Traversable, Generic)
@@ -235,5 +237,3 @@ drawPath = T.pack . DataTree.drawTree . pathToTree
 -- @
 printPath :: Path a -> IO ()
 printPath = putStrLn . T.unpack . drawPath
-
-
