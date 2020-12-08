@@ -21,6 +21,7 @@ module System.Directory.Contents where
 
 import Control.Applicative
 import Control.Monad
+import Data.List
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -111,9 +112,8 @@ buildPath = build Map.empty
                   a <- build (Map.insert canon path seen') canon
                   s <- getSymbolicLinkTarget path
                   pure $ Just $ Path_Symlink path $ Symlink_External s $ case a of
-                    Nothing -> []
                     Just (Path_Dir _ ps) -> ps
-                    Just x -> [x]
+                    _ -> []
               Just _ -> do
                 s <- getSymbolicLinkTarget path
                 pure $ Just $ Path_Symlink path (Symlink_Internal s)
@@ -121,6 +121,29 @@ buildPath = build Map.empty
             Just . Path_Dir path . catMaybes <$>
               mapM (build (Map.insert canon path seen') . (path</>)) subpaths
          | otherwise -> pure $ Just $ Path_File path path
+
+-- | De-reference one layer of symlinks
+dereferenceSymlinks :: Path FilePath -> Path FilePath -> IO (Path FilePath)
+dereferenceSymlinks toppath curpath =
+  case curpath of
+    Path_Dir p xs -> Path_Dir p <$> mapM (dereferenceSymlinks toppath) xs
+    Path_File p x -> pure $ Path_File p x
+    Path_Symlink p sym -> do
+      case sym of
+        Symlink_External _ paths -> pure $ Path_Dir p paths
+        Symlink_Internal _ -> do
+          let startingPoint = takeFileName $ filePath toppath
+          canonRoot <- canonicalizePath $ filePath toppath
+          canonSym <- takeDirectory <$> canonicalizePath p
+          let target = walkPath (startingPoint </> mkRelative canonRoot canonSym) toppath
+          pure $ case target of
+            Nothing -> Path_Symlink p sym
+            Just t -> t
+  where
+    filePath = \case
+      Path_Dir f _ -> f
+      Path_File f _ -> f
+      Path_Symlink f _ -> f
 
 -- * Navigate
 
@@ -178,9 +201,9 @@ instance Witherable WrappedPath
 
 -- | 'wither' for 'Path'. This represents the case of no paths left after
 -- filtering with 'Nothing' (something that the 'Path' type can't represent on
--- its own).
--- NB: Filtering does not remove directories, only files. The directory structure
--- remains intact. To remove empty directories, see 'prunePath'.
+-- its own).  NB: Filtering does not remove directories, only files. The
+-- directory structure remains intact. To remove empty directories, see
+-- 'prunePath'.
 witherPath :: Applicative f => (a -> f (Maybe b)) -> Path a -> f (Maybe (Path b))
 witherPath f = fmap unWrappedPath . wither f . WrappedPath . Just
 
@@ -239,3 +262,14 @@ drawPath = T.pack . DataTree.drawTree . pathToTree
 -- @
 printPath :: Path a -> IO ()
 printPath = putStrLn . T.unpack . drawPath
+
+-- * Utilities
+
+-- | Make one filepath relative to another
+mkRelative :: FilePath -> FilePath -> FilePath
+mkRelative root fp = case stripPrefix (dropTrailingPathSeparator root) fp of
+  Nothing -> []
+  Just r ->
+    -- Remove the leading slash - we know it'll be there because
+    -- we removed the trailing slash (if it was there) from the root
+    drop 1 r
