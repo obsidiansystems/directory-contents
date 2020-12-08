@@ -23,6 +23,7 @@ import Control.Applicative
 import Control.Monad
 import Data.List
 import qualified Data.Map as Map
+import Data.Monoid
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Tree as DataTree
@@ -53,10 +54,11 @@ data Symlink a = Symlink_Internal String
 -- * Constructing a tree
 
 -- | Recursively list the contents of a 'FilePath', representing the results as
--- a 'Path' tree. This function should produce results similar to the linux command
--- @tree -l@.
+-- a 'Path' tree. This function should produce results similar to the linux
+-- command @tree -l@.
 --
--- For example, given this directory and symlink structure (as shown by @tree -l@):
+-- For example, given this directory and symlink structure
+-- (as shown by @tree -l@):
 --
 -- > test
 -- > ├── A
@@ -102,24 +104,21 @@ buildPath = build Map.empty
       isDir <- doesDirectoryExist path
       isSym <- pathIsSymbolicLink path
       subpaths <- if isDir then listDirectory path else pure []
-      subcanons <- mapM canonicalizePath <=< filterM (fmap not . pathIsSymbolicLink) $
-        (path </>) <$> subpaths
+      subcanons <- mapM canonicalizePath <=<
+        filterM (fmap not . pathIsSymbolicLink) $ (path </>) <$> subpaths
       let seen' = Map.union seen $ Map.fromList $ zip subcanons subpaths
+          buildSubpaths = catMaybes <$>
+            mapM (build (Map.insert canon path seen') . (path</>)) subpaths
       if | not isPath -> pure Nothing
          | isSym -> do
             case Map.lookup canon seen' of
               Nothing -> do
-                  a <- build (Map.insert canon path seen') canon
-                  s <- getSymbolicLinkTarget path
-                  pure $ Just $ Path_Symlink path $ Symlink_External s $ case a of
-                    Just (Path_Dir _ ps) -> ps
-                    _ -> []
-              Just _ -> do
                 s <- getSymbolicLinkTarget path
-                pure $ Just $ Path_Symlink path (Symlink_Internal s)
-         | isDir -> do
-            Just . Path_Dir path . catMaybes <$>
-              mapM (build (Map.insert canon path seen') . (path</>)) subpaths
+                Just . Path_Symlink path . Symlink_External s <$> buildSubpaths
+              Just _ ->
+                Just . Path_Symlink path . Symlink_Internal <$>
+                  getSymbolicLinkTarget path
+         | isDir -> Just . Path_Dir path <$> buildSubpaths
          | otherwise -> pure $ Just $ Path_File path path
 
 -- | De-reference one layer of symlinks
@@ -169,20 +168,44 @@ walkPath target p =
       walk :: [FilePath] -> Path a -> Maybe (Path a)
       walk [] path = Just path
       walk (c:gc) path = case path of
-        Path_Dir a xs | takeFileName a == c -> foldl (<|>) Nothing $ map (walk gc) xs
+        Path_Dir a xs | takeFileName a == c -> alternative $ walk gc <$> xs
         Path_File a f | takeFileName a == c && null gc -> Just $ Path_File a f
         Path_Symlink a (Symlink_Internal s) | takeFileName a == c && null gc ->
           Just $ Path_Symlink a (Symlink_Internal s)
-        Path_Symlink a (Symlink_External s xs) | takeFileName a == c -> 
-          case foldl (<|>) Nothing (map (walk gc) xs) of
-            Nothing -> Nothing
-            Just xs' -> Just $ Path_Symlink a $ Symlink_External s [xs']
+        Path_Symlink a (Symlink_External _ xs) | takeFileName a == c ->
+          alternative $ walk gc <$> xs
         _ -> Nothing
   in walk pathSegments p
 
+-- | Like 'walkPath' but skips the outermost containing directory. Useful for
+-- walking paths relative from the root directory passed to 'buildPath'.
+--
+-- Given the following 'Path':
+--
+-- > src
+-- > └── System
+-- >     └── Directory
+-- >             └── Contents.hs
+--
+-- @walkContents "System"@ should produce
+--
+-- > Directory
+-- > |
+-- > `- Contents.hs
+walkContents :: FilePath -> Path a -> Maybe (Path a)
+walkContents p = \case
+  Path_Dir _ xs -> walkSub xs
+  Path_File _ _ -> Nothing
+  Path_Symlink _ (Symlink_External _ xs) -> walkSub xs
+  Path_Symlink _ (Symlink_Internal _) -> Nothing
+  where
+    walkSub :: [Path a] -> Maybe (Path a)
+    walkSub xs = getAlt $ mconcat $ Alt . walkPath p <$> xs
+
 -- * Filter
 
--- | This wrapper really just represents the no-path/empty case so that filtering works
+-- | This wrapper really just represents the no-path/empty case so that
+-- filtering works
 newtype WrappedPath a = WrappedPath { unWrappedPath :: Maybe (Path a) }
   deriving (Show, Read, Eq, Ord, Functor, Foldable, Traversable)
 
@@ -193,8 +216,10 @@ instance Filterable WrappedPath where
         go a = case a of
           Path_Dir p xs -> Just $ Path_Dir p $ catMaybes $ go <$> xs
           Path_File p f -> Path_File p <$> f
-          Path_Symlink p (Symlink_External s f) -> Just $ Path_Symlink p (Symlink_External s $ mapMaybe go f)
-          Path_Symlink p (Symlink_Internal s) -> Just $ Path_Symlink p $ Symlink_Internal s
+          Path_Symlink p (Symlink_External s f) ->
+            Just $ Path_Symlink p (Symlink_External s $ mapMaybe go f)
+          Path_Symlink p (Symlink_Internal s) ->
+            Just $ Path_Symlink p $ Symlink_Internal s
     in go x
 
 instance Witherable WrappedPath
@@ -239,11 +264,14 @@ prunePath = \case
 
 -- | Produces a tree drawing (using only text) of a 'Path' hierarchy.
 drawPath :: Path a -> Text
-drawPath = T.pack . DataTree.drawTree . pathToTree
+drawPath = T.pack . drawPathWith const
+
+-- | Apply a rendering function to each file when drawing the directory hierarchy
+drawPathWith :: (String -> a -> String) -> Path a -> String
+drawPathWith f = DataTree.drawTree . pathToTree
   where
-    pathToTree :: Path a -> DataTree.Tree String
     pathToTree = \case
-      Path_File p _ -> DataTree.Node (takeFileName p) []
+      Path_File p a -> DataTree.Node (f (takeFileName p) a) []
       Path_Dir p ps -> DataTree.Node (takeFileName p) $ pathToTree <$> ps
       Path_Symlink p (Symlink_Internal s) -> DataTree.Node (showSym p s) []
       Path_Symlink p (Symlink_External s xs) -> DataTree.Node (showSym p s) $ pathToTree <$> xs
@@ -273,3 +301,7 @@ mkRelative root fp = case stripPrefix (dropTrailingPathSeparator root) fp of
     -- Remove the leading slash - we know it'll be there because
     -- we removed the trailing slash (if it was there) from the root
     drop 1 r
+
+-- | Get the first 'Alternative'
+alternative :: Alternative f => [f a] -> f a
+alternative = getAlt . mconcat . fmap Alt
