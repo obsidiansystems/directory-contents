@@ -4,7 +4,7 @@ let
   inherit (nixpkgsSets) nixos1809 nixos2003 unstable;
   inherit (nixos2003) lib;
   inherit (nixos2003.haskell.lib) doJailbreak dontCheck;
-  dep-sum-overrides = self: super: {
+  sharedOverrides = self: super: {
     witherable = self.callHackageDirect {
       pkg = "witherable";
       ver = "0.3.5";
@@ -15,12 +15,22 @@ let
       ver = "0";
       sha256 = "1v9rkk040j87bnipljmvccxwz8phpkgnq6vbwdq0l7pf7w3im5wc";
     } {};
+    monoidal-containers = self.callHackageDirect {
+      pkg = "monoidal-containers";
+      ver = "0.6.0.1";
+      sha256 = "1caxq3jz2i4w3vm4qq1raa9f9avmyv4ghprx9x3xr0ga7cdy7x2m";
+    } {};
   };
   ghcs = rec {
-    ghc865 = nixos2003.haskell.packages.ghc865;
-    ghc884 = nixos2003.haskell.packages.ghc884.override {
+    ghc865 = nixos2003.haskell.packages.ghc865.override {
+      overrides = sharedOverrides;
     };
-    ghc8102 = unstable.haskell.packages.ghc8102;
+    ghc884 = nixos2003.haskell.packages.ghc884.override {
+      overrides = sharedOverrides;
+    };
+    ghc8102 = unstable.haskell.packages.ghc8102.override {
+      overrides = sharedOverrides;
+    };
   };
 in
   lib.mapAttrs (_: ghc: ghc.callCabal2nix "directory-contents" ./. {}) ghcs
