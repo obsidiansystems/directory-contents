@@ -138,6 +138,8 @@ buildPath = build Map.empty
 -- > |
 -- > `- Contents.hs
 --
+-- This function does not dereference symlinks, nor does it handle the special
+-- paths @.@ and @..@.
 walkPath :: FilePath -> Path a -> Maybe (Path a)
 walkPath target p =
   let pathSegments = splitDirectories target
