@@ -5,30 +5,17 @@ let
   inherit (nixos2003) lib;
   inherit (nixos2003.haskell.lib) doJailbreak dontCheck;
   sharedOverrides = self: super: {
-    witherable = self.callHackageDirect {
-      pkg = "witherable";
-      ver = "0.3.5";
-      sha256 = "1fqgz6gyzj3gnv7h5iy8wzycy0ywxjmi6jj9y5bnq7ayn2db90k9";
-    } {};
-    witherable-class = self.callHackageDirect {
-      pkg = "witherable-class";
-      ver = "0";
-      sha256 = "1v9rkk040j87bnipljmvccxwz8phpkgnq6vbwdq0l7pf7w3im5wc";
-    } {};
-    monoidal-containers = self.callHackageDirect {
+    monoidal-containers = doJailbreak (self.callHackageDirect {
       pkg = "monoidal-containers";
       ver = "0.6.0.1";
       sha256 = "1caxq3jz2i4w3vm4qq1raa9f9avmyv4ghprx9x3xr0ga7cdy7x2m";
-    } {};
+    } {});
   };
   ghcs = rec {
     ghc865 = nixos2003.haskell.packages.ghc865.override {
       overrides = sharedOverrides;
     };
     ghc884 = nixos2003.haskell.packages.ghc884.override {
-      overrides = sharedOverrides;
-    };
-    ghc8102 = unstable.haskell.packages.ghc8102.override {
       overrides = sharedOverrides;
     };
   };
