@@ -9,7 +9,9 @@ Description
 
 Modeled after the linux `tree` command (when invoked with the follow-symlinks
 option), this module recursively lists the contents of a directory while
-avoiding symlink loops. See the documentation of `buildPath` for an example.
+avoiding symlink loops. In particular, `tree -l` and `buildDirTree` should
+provide the same result. See the documentation of `buildDirTree` for an
+example.
 
 In addition to building the directory-contents tree, this module provides
 facilities for filtering, displaying, and navigating the directory hierarchy.
@@ -28,16 +30,16 @@ Example
 >
 > main :: IO ()
 > main = do
->   mp <- buildPath "."
+>   mp <- buildDirTree "."
 >   case mp of
 >     Nothing -> putStrLn "Couldn't find that path."
 >     Just p -> do
->       let f = prunePath =<< filterPath ((`elem` [".hs", ".lhs"]) . takeExtension) p
+>       let f = pruneDirTree =<< filterDirTree ((`elem` [".hs", ".lhs"]) . takeExtension) p
 >       putStrLn $ case f of
 >         Nothing -> "No haskell source files found."
 >         Just hs -> unlines
 >           [ "Paths that contain haskell source files:"
->           , T.unpack $ drawPath hs
+>           , T.unpack $ drawDirTree hs
 >           , ""
 >           , "Haskell source files:"
 >           , intercalate ", " $ F.toList hs
