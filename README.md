@@ -18,7 +18,9 @@ Example
 -------
 
 >
-> import Data.Text as T
+> import Data.Foldable as F
+> import Data.List
+> import qualified Data.Text as T
 > import System.Directory.Contents
 > import System.FilePath
 >
@@ -31,5 +33,11 @@ Example
 >       let f = prunePath =<< filterPath ((`elem` [".hs", ".lhs"]) . takeExtension) p
 >       putStrLn $ case f of
 >         Nothing -> "No haskell source files found."
->         Just hs -> T.unpack $ drawPath hs
+>         Just hs -> unlines
+>           [ "Paths that contain haskell source files:"
+>           , T.unpack $ drawPath hs
+>           , ""
+>           , "Haskell source files:"
+>           , intercalate ", " $ F.toList hs
+>           ]
 >
