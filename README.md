@@ -17,6 +17,8 @@ facilities for filtering, displaying, and navigating the directory hierarchy.
 Example
 -------
 
+```haskell
+
 >
 > import Data.Foldable as F
 > import Data.List
@@ -41,3 +43,5 @@ Example
 >           , intercalate ", " $ F.toList hs
 >           ]
 >
+
+```
