@@ -23,6 +23,7 @@ module System.Directory.Contents where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Trans.Writer
 import Data.List
 import qualified Data.Map as Map
 import Data.Monoid
@@ -50,6 +51,10 @@ data DirTree a
 -- would any other folder and produce a list of its contents.
 --
 -- The 'String' argument represents the symlink reference (e.g., "../somefile").
+-- In the 'Symlink_Internal' case, the second ('FilePath') argument is the path
+-- to the symlink target.
+-- In the 'Symlink_External' case, the second (@[DirTree a]@) argument contains
+-- the contents of the symlink target.
 data Symlink a
   = Symlink_Internal String FilePath
   | Symlink_External String [DirTree a]
@@ -169,7 +174,13 @@ dereferenceSymlinks toppath = deref toppath toppath
       DirTree_Dir p xs -> DirTree_Dir p <$> mapM (deref top) xs
       DirTree_File p x -> pure $ DirTree_File p x
       DirTree_Symlink p sym -> case sym of
-        Symlink_External _ paths -> pure $ DirTree_Dir p paths
+        Symlink_External _ paths -> case paths of
+          [] -> do
+            isDir <- doesDirectoryExist p
+            pure $ if isDir
+              then DirTree_Dir p []
+              else DirTree_File p p
+          ps -> pure $ DirTree_Dir p ps
         Symlink_Internal _ r -> do
           let startingPoint = takeFileName $ filePath top
           let target = walkDirTree (startingPoint </> r) top
@@ -245,19 +256,34 @@ newtype DirTreeMaybe a = DirTreeMaybe { unDirTreeMaybe :: Maybe (DirTree a) }
 
 instance Filterable DirTreeMaybe where
   catMaybes (DirTreeMaybe Nothing) = DirTreeMaybe Nothing
-  catMaybes (DirTreeMaybe (Just x)) = DirTreeMaybe $
-    let go :: DirTree (Maybe a) -> Maybe (DirTree a)
+  catMaybes (DirTreeMaybe (Just x)) = DirTreeMaybe $ do
+    let go :: DirTree (Maybe a) -> Writer [FilePath] (Maybe (DirTree a))
         go = \case
-          DirTree_Dir p xs -> Just $ DirTree_Dir p $ catMaybes $ go <$> xs
-          DirTree_File p f -> DirTree_File p <$> f
-          DirTree_Symlink p (Symlink_External s f) -> Just $ DirTree_Symlink p
-            (Symlink_External s $ mapMaybe go f)
-          DirTree_Symlink p (Symlink_Internal s t) ->
-            case go <$> walkDirTree t x of
-              Nothing -> Nothing
-              Just Nothing -> Nothing
-              Just (Just _) -> Just $ DirTree_Symlink p $ Symlink_Internal s t
-    in go x
+          DirTree_Dir p xs -> do
+            out <- mapM go xs
+            pure $ Just $ DirTree_Dir p $ catMaybes out
+          DirTree_File p f -> case f of
+            Nothing -> tell [p] >> pure Nothing
+            Just f' -> pure $ Just $ DirTree_File p f'
+          DirTree_Symlink p (Symlink_External s xs) -> do
+            out <- mapM go xs
+            pure $ Just $ DirTree_Symlink p (Symlink_External s $ catMaybes out)
+          DirTree_Symlink p (Symlink_Internal s r) -> pure $
+             Just $ DirTree_Symlink p (Symlink_Internal s r)
+        removeStaleSymlinks :: [FilePath] -> DirTree a -> Maybe (DirTree a)
+        removeStaleSymlinks xs = \case
+          DirTree_Symlink p (Symlink_Internal s r) ->
+            let startingPoint = takeDirectory $ filePath x
+            in
+              if (startingPoint </> r) `elem` xs
+              then Nothing
+              else Just $ DirTree_Symlink p (Symlink_Internal s r)
+          DirTree_Symlink p s -> Just $ DirTree_Symlink p s
+          DirTree_File p f -> Just $ DirTree_File p f
+          DirTree_Dir p fs -> Just $ DirTree_Dir p $
+            catMaybes $ removeStaleSymlinks xs <$> fs
+    let (out, removals) = runWriter $ go x
+    removeStaleSymlinks removals =<< out
 
 instance Witherable DirTreeMaybe
 
