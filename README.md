@@ -26,14 +26,36 @@ Example
 > import Data.List
 > import qualified Data.Text as T
 > import System.Directory.Contents
+> import System.Directory.Contents.Zipper
 > import System.FilePath
 >
 > main :: IO ()
 > main = do
+
+```
+Building a directory tree is easy. Just call `buildDirTree` on a path of your
+choice. It'll recursively enumerate the contents of the directories. If it
+encounters symlinks, it'll follow those symlinks if it hasn't yet encountered
+the target of the symlink. If it has, it'll store a reference to that
+already-seen target.
+
+```haskell
+
 >   mp <- buildDirTree "."
 >   case mp of
 >     Nothing -> putStrLn "Couldn't find that path."
 >     Just p -> do
+
+```
+Once you've got a `DirTree` you can fmap, traverse, filter, or
+[wither](https://hackage.haskell.org/package/witherable-class) it to transform
+it however you like.
+
+Note that the filtering operations generally do not remove empty directories.
+You have to call `pruneDirTree` to do that.
+
+```haskell
+
 >       let f = pruneDirTree =<< filterDirTree ((`elem` [".hs", ".lhs"]) . takeExtension) p
 >       putStrLn $ case f of
 >         Nothing -> "No haskell source files found."
@@ -44,6 +66,26 @@ Example
 >           , "Haskell source files:"
 >           , intercalate ", " $ F.toList hs
 >           ]
+
+```
+
+You can also use the provided `DirZipper` to browse your directory hierarchy and make
+changes wherever you like.
+
+```haskell
+
+>       let displayFocused =  maybe
+>             (putStrLn "Couldn't find navigation target")
+>             (printDirTree . focused)
+>
+>       displayFocused $
+>         downTo "Directory" =<< downTo "System" =<< downTo "src" (zipped p)
+>
+>           followRelative "./src/../src/System/Directory/Contents" (zipped p)
+>
+>       maybe (putStrLn "Couldn't find navigation target") printDirTree $
+>         fmap focused $
+>           remove =<< followRelative "./src/System" (zipped p)
 >
 
 ```

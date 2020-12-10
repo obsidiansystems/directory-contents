@@ -1,5 +1,6 @@
 import Data.Maybe
 import System.Directory.Contents
+import System.Directory.Contents.Zipper
 import System.Exit
 import System.FilePath
 
@@ -19,13 +20,21 @@ main = do
     pure $ expectNothing $ walkContents "C" =<< pruneDirTree filtered
   rocket <- test "Check that symlink can be traversed" $
     pure (walkContents "D/rocket" filtered)
+  test "Check that filtering removes internal symlinks to filtered files" $
+    pure $ expectNothing $
+      walkContents "C/info.md" filtered
   let filterRockets = filterDirTree ((/="rocket") . takeFileName)
-  test "Check that filtering removes symlinks to filtered files" $
+  test "Check that filtering removes external symlinks to filtered files" $
     pure $ expectNothing $
       walkContents "d_rocket" =<< filterRockets p
   test "Check that dereferenced symlinks to filtered files are not removed" $ do
     deref <- dereferenceSymlinks p
     pure $ walkContents "d_rocket" =<< filterRockets deref
+  test "Zipper down then up from root == id" $
+    pure $ expectTrue $ fmap focused (up =<< down (zipped p)) == Just p
+  test "Use zipper to remove a node" $ do
+    let a = up =<< remove =<< downTo "info.md" =<< downTo "C" (zipped p)
+    pure $ expectNothing $ walkContents "C/info.md" . focused =<< a
   readFile (filePath rocket) >>=
     putStr >> putStrLn " All systems go!"
 
@@ -42,3 +51,6 @@ expectNothing :: Maybe a -> Maybe ()
 expectNothing x = case x of
   Nothing -> Just ()
   Just _ -> Nothing
+
+expectTrue :: Bool -> Maybe ()
+expectTrue x = if x then Just () else Nothing

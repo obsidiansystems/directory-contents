@@ -1,13 +1,9 @@
-{-# language DeriveFoldable #-}
-{-# language DeriveFunctor #-}
-{-# language DeriveGeneric #-}
-{-# language DeriveTraversable #-}
-{-# language FlexibleContexts #-}
-{-# language LambdaCase #-}
-{-# language MultiWayIf #-}
-{-# language ScopedTypeVariables #-}
-{-# language DeriveDataTypeable #-}
-
+{-# Language DeriveFoldable #-}
+{-# Language DeriveFunctor #-}
+{-# Language DeriveTraversable #-}
+{-# Language FlexibleContexts #-}
+{-# Language LambdaCase #-}
+{-# Language MultiWayIf #-}
 {-|
 Description:
   Recursively list the contents of a directory while avoiding
@@ -20,13 +16,17 @@ avoiding symlink loops. See the documentation of 'buildDirTree' for an example.
 In addition to building the directory-contents tree, this module provides
 facilities for filtering, displaying, and navigating the directory hierarchy.
 
+See 'System.Directory.Contents.Zipper' for zipper-based navigation.
+
 -}
-module System.Directory.Contents where
+module System.Directory.Contents 
+  ( module System.Directory.Contents
+  , module System.Directory.Contents.Types
+  ) where
 
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Writer
-import Data.Data (Data)
 import Data.List
 import qualified Data.Map as Map
 import Data.Monoid
@@ -36,36 +36,14 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Tree as DataTree
 import Data.Witherable
-import GHC.Generics
 import System.Directory
 import System.FilePath
 
--- | The contents of a directory, represented as a tree. See 'Symlink' for
--- special handling of symlinks.
-data DirTree a
-  = DirTree_Dir FilePath [DirTree a]
-  | DirTree_File FilePath a
-  | DirTree_Symlink FilePath (Symlink a)
-  deriving (Show, Read, Eq, Ord, Functor, Foldable, Traversable, Generic, Data)
+import System.Directory.Contents.Types
+import System.Directory.Contents.Zipper
 
--- | Symlink cycles are prevented by separating symlinks into two categories:
--- those that point to paths already within the directory hierarchy being
--- recursively listed, and those that are not. In the former case, rather than
--- following the symlink and listing the target redundantly, we simply store
--- the symlink reference itself. In the latter case, we treat the symlink as we
--- would any other folder and produce a list of its contents.
---
--- The 'String' argument represents the symlink reference (e.g., "../somefile").
--- In the 'Symlink_Internal' case, the second ('FilePath') argument is the path
--- to the symlink target.
--- In the 'Symlink_External' case, the second (@[DirTree a]@) argument contains
--- the contents of the symlink target.
-data Symlink a
-  = Symlink_Internal String FilePath
-  | Symlink_External String [DirTree a]
-  deriving (Show, Read, Eq, Ord, Functor, Foldable, Traversable, Generic, Data)
+-- * Construct
 
--- * Constructing a tree
 -- | Recursively list the contents of a 'FilePath', representing the results as
 -- a hierarchical 'DirTree'. This function should produce results similar to
 -- the linux command @tree -l@.
@@ -126,7 +104,7 @@ buildDirTree root = build Map.empty root
          | isSym -> case Map.lookup canon seen' of
              Nothing -> do
                s <- getSymbolicLinkTarget path
-               Just . DirTree_Symlink path . Symlink_External s <$> buildSubpaths
+               Just . DirTree_Symlink path . Symlink_External s . fileNameMap <$> buildSubpaths
              Just _ -> do
                target <- getSymbolicLinkTarget path
                canonRoot <- canonicalizePath root
@@ -134,7 +112,7 @@ buildDirTree root = build Map.empty root
                canonSym <- canonicalizePath $ takeDirectory path </> target
                pure $ Just $ DirTree_Symlink path $ Symlink_Internal target $
                 startingPoint </> mkRelative canonRoot canonSym
-         | isDir -> Just . DirTree_Dir path <$> buildSubpaths
+         | isDir -> Just . DirTree_Dir path . fileNameMap <$> buildSubpaths
          | otherwise -> pure $ Just $ DirTree_File path path
 
 -- | De-reference one layer of symlinks
@@ -179,13 +157,14 @@ dereferenceSymlinks toppath = deref toppath toppath
       DirTree_Dir p xs -> DirTree_Dir p <$> mapM (deref top) xs
       DirTree_File p x -> pure $ DirTree_File p x
       DirTree_Symlink p sym -> case sym of
-        Symlink_External _ paths -> case paths of
-          [] -> do
-            isDir <- doesDirectoryExist p
-            pure $ if isDir
-              then DirTree_Dir p []
-              else DirTree_File p p
-          ps -> pure $ DirTree_Dir p ps
+        Symlink_External _ paths ->
+          if Map.null paths
+            then do
+              isDir <- doesDirectoryExist p
+              pure $ if isDir
+                then DirTree_Dir p Map.empty
+                else DirTree_File p p
+            else pure $ DirTree_Dir p paths
         Symlink_Internal _ r -> do
           let startingPoint = takeFileName $ filePath top
           let target = walkDirTree (startingPoint </> r) top
@@ -217,14 +196,14 @@ walkDirTree target p =
       walk [] path = Just path
       walk (c : gc) path = case path of
         DirTree_Dir a xs
-          | takeFileName a == c -> alternative $ walk gc <$> xs
+          | takeFileName a == c -> alternative $ walk gc <$> Map.elems xs
         DirTree_File a f
           | takeFileName a == c && null gc -> Just $ DirTree_File a f
         DirTree_Symlink a (Symlink_Internal s t)
           | takeFileName a == c && null gc -> Just $ DirTree_Symlink a
             (Symlink_Internal s t)
         DirTree_Symlink a (Symlink_External _ xs)
-          | takeFileName a == c -> alternative $ walk gc <$> xs
+          | takeFileName a == c -> alternative $ walk gc <$> Map.elems xs
         _ -> Nothing
   in walk pathSegments p
 
@@ -244,14 +223,7 @@ walkDirTree target p =
 -- > |
 -- > `- Contents.hs
 walkContents :: FilePath -> DirTree a -> Maybe (DirTree a)
-walkContents p = \case
-  DirTree_Dir _ xs -> walkSub xs
-  DirTree_File _ _ -> Nothing
-  DirTree_Symlink _ (Symlink_External _ xs) -> walkSub xs
-  DirTree_Symlink _ (Symlink_Internal _ _) -> Nothing
-  where
-    walkSub :: [DirTree a] -> Maybe (DirTree a)
-    walkSub xs = getAlt $ mconcat $ Alt . walkDirTree p <$> xs
+walkContents p = fmap focused . followRelative p . zipped
 
 -- * Filter
 -- | This wrapper really just represents the no-path/empty case so that
@@ -276,14 +248,19 @@ instance Filterable DirTreeMaybe where
           DirTree_Symlink p (Symlink_Internal s r) -> pure $
              Just $ DirTree_Symlink p (Symlink_Internal s r)
         removeStaleSymlinks :: Set FilePath -> DirTree a -> Maybe (DirTree a)
-        removeStaleSymlinks xs = \case
+        removeStaleSymlinks xs d = case d of
           DirTree_Symlink p (Symlink_Internal s r) ->
-            let startingPoint = takeDirectory $ filePath x
+            let startingPoint = case takeDirectory $ filePath x of
+                  "." -> ""
+                  a -> a
             in
               if (startingPoint </> r) `Set.member` xs
               then Nothing
               else Just $ DirTree_Symlink p (Symlink_Internal s r)
-          DirTree_Symlink p s -> Just $ DirTree_Symlink p s
+          DirTree_Symlink p (Symlink_External s cs) ->
+            if Map.null cs && Set.member (filePath x </> s) xs
+            then Nothing
+            else Just $ DirTree_Symlink p (Symlink_External s cs)
           DirTree_File p f -> Just $ DirTree_File p f
           DirTree_Dir p fs -> Just $ DirTree_Dir p $
             catMaybes $ removeStaleSymlinks xs <$> fs
@@ -351,9 +328,9 @@ pruneDirTree = \case
   DirTree_Symlink a (Symlink_Internal s t) ->
     Just $ DirTree_Symlink a (Symlink_Internal s t)
   where
-    sub c xs = case mapMaybe pruneDirTree xs of
-      [] -> Nothing
-      ys -> Just $ c ys
+    sub c xs =
+      let ys = mapMaybe pruneDirTree xs
+      in if Map.null ys then Nothing else Just $ c ys
 
 -- * Display
 -- | Produces a tree drawing (using only text) of a 'DirTree' hierarchy.
@@ -368,11 +345,11 @@ drawDirTreeWith f = DataTree.drawTree . pathToTree
       DirTree_File p a ->
         DataTree.Node (f (takeFileName p) a) []
       DirTree_Dir p ps ->
-        DataTree.Node (takeFileName p) $ pathToTree <$> ps
+        DataTree.Node (takeFileName p) $ pathToTree <$> Map.elems ps
       DirTree_Symlink p (Symlink_Internal s _) ->
         DataTree.Node (showSym p s) []
       DirTree_Symlink p (Symlink_External s xs) ->
-        DataTree.Node (showSym p s) $ pathToTree <$> xs
+        DataTree.Node (showSym p s) $ pathToTree <$> Map.elems xs
     showSym p s = takeFileName p <> " -> " <> s
 
 -- | Print the 'DirTree' as a tree. For example:
@@ -403,10 +380,3 @@ mkRelative root fp = case stripPrefix (dropTrailingPathSeparator root) fp of
 -- | Get the first 'Alternative'
 alternative :: Alternative f => [f a] -> f a
 alternative = getAlt . mconcat . fmap Alt
-
--- | Extract the 'FilePath' from a 'DirTree' node
-filePath :: DirTree a -> FilePath
-filePath = \case
-  DirTree_Dir f _ -> f
-  DirTree_File f _ -> f
-  DirTree_Symlink f _ -> f
