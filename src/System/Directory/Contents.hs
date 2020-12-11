@@ -20,8 +20,40 @@ See 'System.Directory.Contents.Zipper.DirZipper' for zipper-based navigation.
 
 -}
 module System.Directory.Contents 
-  ( module System.Directory.Contents
-  , module System.Directory.Contents.Types
+  (
+  -- * Directory hierarchy tree
+    DirTree(..)
+  , Symlink(..)
+  , FileName
+  -- ** Constructing directory trees
+  , buildDirTree
+  , dereferenceSymlinks
+  -- ** Lower level tree construction
+  -- *** Extracting basic file information
+  , filePath
+  , fileName
+  -- *** Building and manipulating a map of sibling files
+  , fileNameMap
+  , insertSibling
+  , removeSibling
+  , withFirstChild
+  -- * Basic directory tree navigation
+  , walkDirTree
+  , walkContents
+  -- * Filtering a directory tree
+  , pruneDirTree
+  , DirTreeMaybe(..)
+  , withDirTreeMaybe
+  , withDirTreeMaybeF
+  , witherDirTree
+  , filterADirTree
+  , mapMaybeDirTree
+  , catMaybesDirTree
+  , filterDirTree
+  -- * Displaying a directory tree
+  , drawDirTree
+  , drawDirTreeWith
+  , printDirTree
   ) where
 
 import Control.Applicative
@@ -188,7 +220,8 @@ dereferenceSymlinks toppath = deref toppath toppath
 -- > `- Contents.hs
 --
 -- This function does not dereference symlinks, nor does it handle the special
--- paths @.@ and @..@.
+-- paths @.@ and @..@. For more advanced navigation, including handling of special
+-- paths, see 'System.Directory.Contents.Zipper.DirZipper'.
 walkDirTree :: FilePath -> DirTree a -> Maybe (DirTree a)
 walkDirTree target p =
   let pathSegments = splitDirectories target
@@ -222,6 +255,9 @@ walkDirTree target p =
 -- > Directory
 -- > |
 -- > `- Contents.hs
+--
+--For more advanced navigation, see
+--'System.Directory.Contents.Zipper.DirZipper'.
 walkContents :: FilePath -> DirTree a -> Maybe (DirTree a)
 walkContents p = fmap focused . followRelative p . zipped
 
