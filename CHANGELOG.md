@@ -4,6 +4,7 @@
 
 * Add `Data.Data` instance for `DirTree` and `Symlink`
 * Add `System.Directory.Contents.Zipper` for convenient navigation and modification of directory contents
+* Add more examples to readme
 
 ## 0.1.0.0
 

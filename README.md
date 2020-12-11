@@ -74,18 +74,22 @@ changes wherever you like.
 
 ```haskell
 
->       let displayFocused =  maybe
+>       let printFocused =  maybe
 >             (putStrLn "Couldn't find navigation target")
 >             (printDirTree . focused)
 >
->       displayFocused $
+>       putStrLn "Navigating down to src/System/Directory:"
+>       printFocused $
 >         downTo "Directory" =<< downTo "System" =<< downTo "src" (zipped p)
 >
->           followRelative "./src/../src/System/Directory/Contents" (zipped p)
+>       putStrLn "Navigating using a path containing \"..\":"
+>       printFocused $
+>           followRelative "./src/../src/System/Directory" (zipped p)
 >
->       maybe (putStrLn "Couldn't find navigation target") printDirTree $
->         fmap focused $
->           remove =<< followRelative "./src/System" (zipped p)
+>       putStrLn "Removing the src/System directory. The src folder is now empty"
+>       putStrLn "(note that this doesn't change the actual files):"
+>       printFocused $
+>         remove =<< followRelative "./src/System" (zipped p)
 >
 
 ```
