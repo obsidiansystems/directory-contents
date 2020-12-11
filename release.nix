@@ -1,6 +1,7 @@
 { }:
 let
   nixpkgsSets = import ./.ci/nixpkgs.nix;
+  rp = import ./.ci/reflex-platform {};
   inherit (nixpkgsSets) nixos1809 nixos2003 unstable;
   inherit (nixos2003) lib;
   inherit (nixos2003.haskell.lib) doJailbreak dontCheck;
@@ -18,6 +19,7 @@ let
     ghc884 = nixos2003.haskell.packages.ghc884.override {
       overrides = sharedOverrides;
     };
+    ghcjs = rp.ghcjs;
   };
 in
   lib.mapAttrs (_: ghc: ghc.callCabal2nix "directory-contents" ./. {}) ghcs
