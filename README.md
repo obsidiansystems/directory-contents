@@ -2,7 +2,8 @@ directory-contents
 ==================
 [![Haskell](https://img.shields.io/badge/language-Haskell-orange.svg)](https://haskell.org) [![Hackage](https://img.shields.io/hackage/v/directory-contents.svg)](https://hackage.haskell.org/package/directory-contents) [![Hackage CI](https://matrix.hackage.haskell.org/api/v2/packages/directory-contents/badge)](https://matrix.hackage.haskell.org/#/package/directory-contents) [![Github CI](https://github.com/obsidiansystems/directory-contents/workflows/github-action/badge.svg)](https://github.com/obsidiansystems/directory-contents/actions) [![BSD3 License](https://img.shields.io/badge/license-BSD3-blue.svg)](https://github.com/obsidiansystems/directory-contents/blob/master/LICENSE)
 
-Recursively list the contents of a directory while avoiding symlink loops.
+Recursively list, operate on, and navigate the contents of a directory while
+avoiding symlink loops.
 
 Description
 -----------

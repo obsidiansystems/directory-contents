@@ -1,9 +1,9 @@
 cabal-version:      >=1.10
 name:               directory-contents
 version:            0.2.0.0
-synopsis:           Recursively build a tree of directory contents.
+synopsis:           Recursively build, navigate, and operate on a tree of directory contents.
 description:
-  Like the linux tree command, this library recursively constructs a tree of directory contents while detecting and avoiding symlink cycles.
+  Like the linux tree command, this library recursively constructs a tree of directory contents while detecting and avoiding symlink cycles. It also provides functions for operating on and navigating the contents.
 
 bug-reports:
   https://github.com/obsidiansystems/directory-contents/issues
