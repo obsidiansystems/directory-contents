@@ -16,7 +16,7 @@ avoiding symlink loops. See the documentation of 'buildDirTree' for an example.
 In addition to building the directory-contents tree, this module provides
 facilities for filtering, displaying, and navigating the directory hierarchy.
 
-See 'System.Directory.Contents.Zipper' for zipper-based navigation.
+See 'System.Directory.Contents.Zipper.DirZipper' for zipper-based navigation.
 
 -}
 module System.Directory.Contents 
