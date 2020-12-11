@@ -54,6 +54,9 @@ module System.Directory.Contents
   , drawDirTree
   , drawDirTreeWith
   , printDirTree
+  -- * Miscellaneous
+  , mkRelative
+  , alternative
   ) where
 
 import Control.Applicative
@@ -96,7 +99,7 @@ import System.Directory.Contents.Zipper
 -- > └── C -> ../C
 -- >     └── c
 --
--- this function will produce the following (as rendererd by 'drawDirTree'):
+-- this function will produce the following (as rendered by 'drawDirTree'):
 --
 -- > test
 -- > |

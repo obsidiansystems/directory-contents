@@ -5,6 +5,7 @@
 * Add `Data.Data` instance for `DirTree` and `Symlink`
 * Add `System.Directory.Contents.Zipper` for convenient navigation and modification of directory contents
 * Add more examples to readme
+* Breaking change: `DirTree_Dir` and `Symlink_External` child nodes are now stored as a `Map`
 
 ## 0.1.0.0
 
