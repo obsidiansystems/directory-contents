@@ -6,6 +6,7 @@
 * Add `System.Directory.Contents.Zipper` for convenient navigation and modification of directory contents
 * Add more examples to readme
 * Breaking change: `DirTree_Dir` and `Symlink_External` child nodes are now stored as a `Map`
+* Fix: buildDirTree fails as a file gets deleted quickly.
 
 ## 0.1.0.0
 
