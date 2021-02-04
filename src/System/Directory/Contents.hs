@@ -128,7 +128,8 @@ buildDirTree root = build Map.empty root
       canon <- canonicalizePath path
       isPath <- doesPathExist path
       isDir <- doesDirectoryExist path
-      isSym <- pathIsSymbolicLink path
+      let pathExists = isPath || isDir
+      isSym <- if pathExists then fmap Just (pathIsSymbolicLink path) else pure Nothing
       subpaths <- if isDir then listDirectory path else pure []
       subcanons <- mapM canonicalizePath <=<
         filterM (fmap not . pathIsSymbolicLink) $ (path </>) <$> subpaths
@@ -136,7 +137,7 @@ buildDirTree root = build Map.empty root
           buildSubpaths = catMaybes <$> mapM
             (build (Map.insert canon path seen') . (path </>)) subpaths
       if | not isPath -> pure Nothing
-         | isSym -> case Map.lookup canon seen' of
+         | isSym == Just True -> case Map.lookup canon seen' of
              Nothing -> do
                s <- getSymbolicLinkTarget path
                Just . DirTree_Symlink path . Symlink_External s . fileNameMap <$> buildSubpaths
