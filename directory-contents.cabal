@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               directory-contents
-version:            0.2.0.0
+version:            0.2.0.1
 synopsis:           Recursively build, navigate, and operate on a tree of directory contents.
 description:
   Like the linux tree command, this library recursively constructs a tree of directory contents while detecting and avoiding symlink cycles. It also provides functions for operating on and navigating the contents.
@@ -48,7 +48,7 @@ executable readme
 
 test-suite directory-contents-test
   type: exitcode-stdio-1.0
-  build-depends: base, directory-contents, filepath
+  build-depends: base, directory-contents, filepath, process, coquina, directory, text, here
   default-language: Haskell2010
   hs-source-dirs: test
   main-is: Test.hs

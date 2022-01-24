@@ -1,5 +1,9 @@
 # Revision history for directory-contents
 
+## 0.2.0.1
+
+* Create test data rather than relying on fixtures, since it's hard to include these fixtures when using cabal sdist.
+
 ## 0.2.0.0
 
 * Add `Data.Data` instance for `DirTree` and `Symlink`
