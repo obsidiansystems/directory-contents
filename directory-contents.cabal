@@ -1,6 +1,6 @@
 cabal-version:      >=1.10
 name:               directory-contents
-version:            0.2.0.1
+version:            0.2.0.2
 synopsis:           Recursively build, navigate, and operate on a tree of directory contents.
 description:
   Like the linux tree command, this library recursively constructs a tree of directory contents while detecting and avoiding symlink cycles. It also provides functions for operating on and navigating the contents.
@@ -24,12 +24,12 @@ library
                     System.Directory.Contents.Types
                     System.Directory.Contents.Zipper
   build-depends:
-      base         >=4.12 && <4.15
-    , containers   >=0.6  && <0.7
+      base         >=4.12 && <4.20
+    , containers   >=0.6  && <0.8
     , directory    >=1.3  && <1.4
     , filepath     >=1.4  && <1.5
-    , text         >=1.2  && <1.3
-    , transformers >=0.5  && <0.6
+    , text         >=1.2  && <2.2
+    , transformers >=0.5  && <0.7
     , witherable   >=0.3  && <0.5
 
   hs-source-dirs:   src

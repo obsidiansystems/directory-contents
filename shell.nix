@@ -1,1 +1,1 @@
-(import ./env.nix {}).ghc8_10.directory-contents.env
+(import ./env.nix {}).ghc981.directory-contents.env
