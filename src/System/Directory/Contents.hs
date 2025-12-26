@@ -19,7 +19,7 @@ facilities for filtering, displaying, and navigating the directory hierarchy.
 See 'System.Directory.Contents.Zipper.DirZipper' for zipper-based navigation.
 
 -}
-module System.Directory.Contents 
+module System.Directory.Contents
   (
   -- * Directory hierarchy tree
     DirTree(..)
@@ -70,9 +70,9 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Tree as DataTree
-import Data.Witherable
 import System.Directory
 import System.FilePath
+import Witherable
 
 import System.Directory.Contents.Types
 import System.Directory.Contents.Zipper
@@ -352,9 +352,9 @@ mapMaybeDirTree = withDirTreeMaybe . mapMaybe
 catMaybesDirTree :: DirTree (Maybe a) -> Maybe (DirTree a)
 catMaybesDirTree = withDirTreeMaybe catMaybes
 
--- | 'Data.Witherable.filter' for 'DirTree'. See 'witherDirTree'.
+-- | 'Witherable.filter' for 'DirTree'. See 'witherDirTree'.
 filterDirTree :: (a -> Bool) -> DirTree a -> Maybe (DirTree a)
-filterDirTree = withDirTreeMaybe . Data.Witherable.filter
+filterDirTree = withDirTreeMaybe . Witherable.filter
 
 -- | Remove empty directories from the 'DirTree'
 pruneDirTree :: DirTree a -> Maybe (DirTree a)
